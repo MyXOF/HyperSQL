@@ -153,7 +153,7 @@ case ResultConstants.BATCHEXECDIRECT : {
 }
 ```
 
-对于SQL解析部分，HyperSQL里面没有采用流行的开源工具antlr而是自己实现了解析。
+对于SQL解析部分，HyperSQL里面没有采用流行的开源工具antlr而是自己实现了解析，这里不做过多分析。
 
 ### JDBC
 
