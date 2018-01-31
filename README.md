@@ -30,18 +30,7 @@
 
 ```java
 public int start() {
-
-  printWithThread("start() entered");
-
-  int previousState = getState();
-
-  if (serverThread != null) {
-    printWithThread("start(): serverThread != null; no action taken");
-
-    return previousState;
-  }
-
-  setState(ServerConstants.SERVER_STATE_OPENING);
+  //ignore some codes..
 
   serverThread = new ServerThread("HSQLDB Server ");
 
@@ -51,22 +40,13 @@ public int start() {
 
   serverThread.start();
 
-  // call synchronized getState() to become owner of the Server Object's monitor
-  while (getState() == ServerConstants.SERVER_STATE_OPENING) {
-    try {
-      Thread.sleep(100);
-    } catch (InterruptedException e) {}
-  }
-
-  printWithThread("start() exiting");
+  //ignore some codes..
 
   return previousState;
 }
 ```
 
-在serverThread启动的过程中会打开一个socket连接，用于处理外部的请求。
-
-
+在serverThread启动的过程中会打开socket连接，用于处理外部的请求。对于每到来的一个请求，都会创建一个线程进行处理。
 
 ```java
 private void run() {
@@ -74,7 +54,6 @@ private void run() {
   //ignore some codes...
 
   try {
-
     // Faster init first:
     // It is huge waste to fully open the databases, only
     // to find that the socket address is already in use
@@ -84,29 +63,9 @@ private void run() {
     printError("run()/openServerSocket(): ");
     printStackTrace(e);
     shutdown(true);
-
     return;
   }
-
-  tgName = "HSQLDB Connections @"
-    + Integer.toString(this.hashCode(), 16);
-  tg = new ThreadGroup(tgName);
-
-  tg.setDaemon(false);
-
-  serverConnectionThreadGroup = tg;
-
-  // Mount the databases this server is supposed to host.
-  // This may take some time if the databases are not all
-  // already open.
-  if (!openDatabases()) {
-    setServerError(null);
-    printError("Shutting down because there are no open databases");
-    shutdown(true);
-
-    return;
-  }
-
+  
   //ignore some codes...
 
   try {
@@ -132,9 +91,69 @@ private void run() {
     shutdown(false);    // or maybe getServerError() != null?
   }
 }
+
+public void handleConnection(Socket s) {
+ 
+  Thread   t;
+  Runnable r;
+  String   ctn;
+
+  //ignore some codes...
+
+  if (serverProtocol == ServerConstants.SC_PROTOCOL_HSQL) {
+    r   = new ServerConnection(s, this);
+    ctn = ((ServerConnection) r).getConnectionThreadName();
+  } else {
+    r   = new WebServerConnection(s, (WebServer) this);
+    ctn = ((WebServerConnection) r).getConnectionThreadName();
+  }
+
+  t = new Thread(serverConnectionThreadGroup, r, ctn);
+
+  t.start();
+  printWithThread("handleConnection() exited");
+}
 ```
 
+在ServerConnection类中，最终转到了odbcExecDirect函数里面的session.execute(r)方法对SQL语句进行处理。
 
+```Java
+private void odbcExecDirect(String inStatement)  throws RecoverableOdbcFailure, IOException {
+  //ignore some codes...
+
+  Result r = Result.newExecuteDirectRequest();
+
+  r.setPrepareOrExecuteProperties(
+    statement, 0, 0, StatementTypes.RETURN_COUNT, 0,
+    ResultProperties.defaultPropsValue,
+    ResultConstants.RETURN_NO_GENERATED_KEYS, null, null);
+
+  Result rOut = session.execute(r);
+
+  //ignore some codes...
+}
+```
+
+在Session的execute方法里面EXECDIRECT和BATCHEXECDIRECT分别代表单条执行SQL语句和批量执行SQL语句所对应的逻辑。executeXXXStatement方法负责解析SQL语句并执行，performPostExecute方法负责将结果返回。
+
+```Java
+case ResultConstants.EXECDIRECT : {
+  Result result = executeDirectStatement(cmd);
+
+  result = performPostExecute(cmd, result);
+  return result;
+}
+case ResultConstants.BATCHEXECDIRECT : {
+  isBatch = true;
+
+  Result result = executeDirectBatchStatement(cmd);
+
+  result = performPostExecute(cmd, result);
+  return result;
+}
+```
+
+对于SQL解析部分，HyperSQL里面没有采用流行的开源工具antlr而是自己实现了解析。
 
 ### JDBC
 
