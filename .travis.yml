@@ -1,0 +1,16 @@
+dist: trusty
+
+language: java
+
+jdk:
+  - oraclejdk8
+
+before_install:
+  - pip install --user codecov
+
+script: 
+# only SNAPSHOT version needs to do the following phase
+  - mvn clean test
+  
+after_success:
+  - codecov
